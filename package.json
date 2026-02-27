@@ -5,7 +5,8 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsup src/index.ts --format esm --dts --outDir dist --clean --no-dts",
+    "build:tsc": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "clean": "rm -rf dist"

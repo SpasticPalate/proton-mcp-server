@@ -228,12 +228,12 @@ export async function fetchMessage(folder: string, uid: number): Promise<FullMes
     try {
       await client.mailboxOpen(folder);
 
-      const message = await client.fetchOne(uid, {
+      const message = await client.fetchOne(String(uid), {
         envelope: true,
         source: true,
         uid: true,
         flags: true,
-      });
+      }, { uid: true });
 
       if (!message) {
         throw new Error(`Message with UID ${uid} not found`);
@@ -319,7 +319,10 @@ export async function moveMessage(
     const lock = await client.getMailboxLock(sourceFolder);
     try {
       await client.mailboxOpen(sourceFolder);
-      await client.move(uid, destinationFolder);
+      const result = await client.messageMove(String(uid), destinationFolder, { uid: true });
+      if (!result) {
+        throw new Error(`Message UID ${uid} not found in "${sourceFolder}"`);
+      }
     } finally {
       lock.release();
     }
@@ -337,7 +340,10 @@ export async function deleteMessage(folder: string, uid: number): Promise<void> 
     const lock = await client.getMailboxLock(folder);
     try {
       await client.mailboxOpen(folder);
-      await client.move(uid, 'Trash');
+      const result = await client.messageMove(String(uid), 'Trash', { uid: true });
+      if (!result) {
+        throw new Error(`Message UID ${uid} not found in "${folder}"`);
+      }
     } finally {
       lock.release();
     }

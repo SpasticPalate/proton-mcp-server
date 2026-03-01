@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock ImapFlow before importing the module under test
 const mockMessageMove = vi.fn();
 const mockFetchOne = vi.fn();
+const mockFetch = vi.fn();
+const mockSearch = vi.fn();
 const mockMailboxOpen = vi.fn();
 const mockRelease = vi.fn();
 const mockGetMailboxLock = vi.fn();
@@ -18,13 +20,15 @@ vi.mock('imapflow', () => {
       getMailboxLock = mockGetMailboxLock;
       messageMove = mockMessageMove;
       fetchOne = mockFetchOne;
+      fetch = mockFetch;
+      search = mockSearch;
       constructor() {}
     },
   };
 });
 
 // Import after mocks are set up
-import { moveMessage, deleteMessage, fetchMessage } from './imap.js';
+import { moveMessage, deleteMessage, fetchMessage, searchMessages } from './imap.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -86,6 +90,62 @@ describe('deleteMessage', () => {
     await expect(deleteMessage('INBOX', 999)).rejects.toThrow(
       'Message UID 999 not found in "INBOX"'
     );
+  });
+});
+
+describe('searchMessages', () => {
+  it('passes criteria as SearchObject, not array of arrays', async () => {
+    mockSearch.mockResolvedValue([10, 20, 30]);
+    // Mock fetch to return an async iterable
+    mockFetch.mockReturnValue((async function* () {
+      yield {
+        uid: 10, flags: new Set(),
+        envelope: { from: [{ address: 'a@b.com' }], to: [], subject: 'Test', date: new Date() },
+      };
+    })());
+
+    await searchMessages('INBOX', { from: 'steam@example.com', subject: 'Sale' }, 10, 0);
+
+    expect(mockSearch).toHaveBeenCalledTimes(1);
+    const [query, options] = mockSearch.mock.calls[0];
+    // Must be an object, NOT an array
+    expect(Array.isArray(query)).toBe(false);
+    expect(query).toEqual({ from: 'steam@example.com', subject: 'Sale' });
+    expect(options).toEqual({ uid: true });
+  });
+
+  it('passes unseen as { seen: false } in SearchObject', async () => {
+    mockSearch.mockResolvedValue([1]);
+    mockFetch.mockReturnValue((async function* () {
+      yield {
+        uid: 1, flags: new Set(),
+        envelope: { from: [{ address: 'a@b.com' }], to: [], subject: 'Test', date: new Date() },
+      };
+    })());
+
+    await searchMessages('INBOX', { unseen: true }, 10, 0);
+
+    const [query] = mockSearch.mock.calls[0];
+    expect(query).toEqual({ seen: false });
+  });
+
+  it('fetches with { uid: true } so UID ranges are used', async () => {
+    mockSearch.mockResolvedValue([5, 10]);
+    mockFetch.mockReturnValue((async function* () {
+      yield {
+        uid: 5, flags: new Set(),
+        envelope: { from: [{ address: 'a@b.com' }], to: [], subject: 'A', date: new Date() },
+      };
+      yield {
+        uid: 10, flags: new Set(),
+        envelope: { from: [{ address: 'b@b.com' }], to: [], subject: 'B', date: new Date() },
+      };
+    })());
+
+    await searchMessages('INBOX', { from: 'test' }, 10, 0);
+
+    const [, , fetchOptions] = mockFetch.mock.calls[0];
+    expect(fetchOptions).toEqual({ uid: true });
   });
 });
 

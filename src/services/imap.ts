@@ -138,37 +138,37 @@ export async function searchMessages(
     try {
       const mailbox = await client.mailboxOpen(folder);
 
-      // Build search criteria
-      const searchCriteria: any[] = [];
+      // Build search criteria as ImapFlow SearchObject
+      const searchQuery: Record<string, any> = {};
 
       if (criteria.unseen) {
-        searchCriteria.push('UNSEEN');
+        searchQuery.seen = false;
       }
       if (criteria.from) {
-        searchCriteria.push(['FROM', criteria.from]);
+        searchQuery.from = criteria.from;
       }
       if (criteria.to) {
-        searchCriteria.push(['TO', criteria.to]);
+        searchQuery.to = criteria.to;
       }
       if (criteria.subject) {
-        searchCriteria.push(['SUBJECT', criteria.subject]);
+        searchQuery.subject = criteria.subject;
       }
       if (criteria.body) {
-        searchCriteria.push(['BODY', criteria.body]);
+        searchQuery.body = criteria.body;
       }
       if (criteria.since) {
-        searchCriteria.push(['SINCE', criteria.since]);
+        searchQuery.since = criteria.since;
       }
       if (criteria.before) {
-        searchCriteria.push(['BEFORE', criteria.before]);
+        searchQuery.before = criteria.before;
       }
 
-      // If no criteria, just return empty
-      if (searchCriteria.length === 0) {
-        searchCriteria.push('ALL');
+      // If no criteria, search all
+      if (Object.keys(searchQuery).length === 0) {
+        searchQuery.all = true;
       }
 
-      const uids = await client.search(searchCriteria);
+      const uids = await client.search(searchQuery, { uid: true });
       if (!uids || uids.length === 0) {
         return [];
       }
@@ -184,7 +184,7 @@ export async function searchMessages(
         envelope: true,
         uid: true,
         flags: true,
-      });
+      }, { uid: true });
 
       for await (const msg of fetchQuery) {
         if (msg.envelope) {
